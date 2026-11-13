@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Data, outputs and weights never go into git
+*.tar
+*.tar.tmp
+*.npy
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+outputs/
+data/
+logs/
+*.log
+
+# Secrets
+.env
+*token*
