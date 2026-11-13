@@ -86,6 +86,10 @@ class Prepared(Dataset):
 
 def main():
     a = parse_args()
+    info_path = os.path.join(a.output_dir, "dataset_info.json")
+    previous = json.load(open(info_path)) if os.path.exists(info_path) else {}
+    if previous and (previous.get("backbone"), previous.get("upsampler")) != (a.backbone, a.upsampler):
+        sys.exit(f"{a.output_dir} was built with {previous.get('backbone')}/{previous.get('upsampler')}; use another --output_dir")
     ws = WildScenes(a.wildscenes_root, a.splits_dir, max_dt=a.max_dt)
     device = "cuda"
     featurizer = build_featurizer(a.backbone, device, checkpoint=a.checkpoint, random_weights=a.random_weights)
@@ -141,10 +145,13 @@ def main():
             el = time.time() - t0
             print(f"[{split}] {done}/{n_todo} samples | {el / done:.2f} s/sample | ETA {(n_todo - done) * el / done / 3600:.1f} h | {os.path.basename(path)}", flush=True)
 
-    n = write_index(a.output_dir, a.splits, "wildscenes_processed_index.txt")
-    info = {"args": vars(a), "per_split": report, "index_entries": n, "class_names": CLASS_NAMES,
-            "feature_dim": featurizer.dim, "torch": torch.__version__}
-    json.dump(info, open(os.path.join(a.output_dir, "dataset_info.json"), "w"), indent=2)
+    # Index and info cover every split built so far, so splits can be built in separate runs.
+    per_split = {**previous.get("per_split", {}), **report}
+    n = write_index(a.output_dir, sorted(per_split), "wildscenes_processed_index.txt")
+    info = {"backbone": a.backbone, "upsampler": a.upsampler, "feature_dim": featurizer.dim,
+            "per_split": per_split, "index_entries": n, "class_names": CLASS_NAMES,
+            "args_last_run": vars(a), "torch": torch.__version__}
+    json.dump(info, open(info_path, "w"), indent=2)
     print(f"Done. Index: {n} samples -> {os.path.join(a.output_dir, 'wildscenes_processed_index.txt')}")
 
 
