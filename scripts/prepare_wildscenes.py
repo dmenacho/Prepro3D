@@ -88,8 +88,10 @@ def main():
     a = parse_args()
     info_path = os.path.join(a.output_dir, "dataset_info.json")
     previous = json.load(open(info_path)) if os.path.exists(info_path) else {}
-    if previous and (previous.get("backbone"), previous.get("upsampler")) != (a.backbone, a.upsampler):
-        sys.exit(f"{a.output_dir} was built with {previous.get('backbone')}/{previous.get('upsampler')}; use another --output_dir")
+    setting = (a.backbone, a.upsampler, a.upsample_scale)
+    if previous and (previous.get("backbone"), previous.get("upsampler"), previous.get("upsample_scale", a.upsample_scale)) != setting:
+        sys.exit(f"{a.output_dir} was built with {previous.get('backbone')}/{previous.get('upsampler')}/"
+                 f"scale {previous.get('upsample_scale')}; use another --output_dir")
     ws = WildScenes(a.wildscenes_root, a.splits_dir, max_dt=a.max_dt)
     device = "cuda"
     featurizer = build_featurizer(a.backbone, device, checkpoint=a.checkpoint, random_weights=a.random_weights)
@@ -148,7 +150,7 @@ def main():
     # Index and info cover every split built so far, so splits can be built in separate runs.
     per_split = {**previous.get("per_split", {}), **report}
     n = write_index(a.output_dir, sorted(per_split), "wildscenes_processed_index.txt")
-    info = {"backbone": a.backbone, "upsampler": a.upsampler, "feature_dim": featurizer.dim,
+    info = {"backbone": a.backbone, "upsampler": a.upsampler, "upsample_scale": a.upsample_scale, "feature_dim": featurizer.dim,
             "per_split": per_split, "index_entries": n, "class_names": CLASS_NAMES,
             "args_last_run": vars(a), "torch": torch.__version__}
     json.dump(info, open(info_path, "w"), indent=2)

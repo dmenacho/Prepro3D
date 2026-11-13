@@ -41,16 +41,29 @@ python scripts/prepare_wildscenes.py \
     --wildscenes_root /path/to/000061541v003/data/WildScenes \
     --splits_dir /path/to/opt3d \
     --output_dir /path/to/wildscenes_sam3_anyup_webdataset \
-    --backbone sam3                # or: sam2
+    --backbone sam3 \
+    --upsampler anyup \
+    --upsample_scale 0.5
 python scripts/verify_dataset.py --output_dir /path/to/wildscenes_sam3_anyup_webdataset
 ```
+`--backbone sam2` builds the SAM2 version; for `--upsampler` and `--upsample_scale` see the table below.
 Re-running the same command **resumes** (finished shards are skipped; shards are written atomically).
 Quick test first: add `--limit 50` (50 samples per split, spread over the whole split).
-`--upsample_scale 1.0` (one feature per original pixel) runs AnyUp without NATTEN, which crashes at that size:
-it needs ~42 GB GPU memory and ~13 s per image (vs ~0.5 s at the default 0.5).
 
-Expected for the full dataset (RTX A6000): **8,102 samples** (train 5,758 / val 283 / test 2,061),
-**~1.5 h** and **~175 GB per backbone** (`--fp16_features` halves the size), ~13 GB GPU memory.
+**Choose the upsampling by GPU memory** (the scale changes how features are computed, not the dataset size):
+
+| Setting | GPU memory | Time per sample | Use when |
+|---|---|---|---|
+| `--upsampler anyup --upsample_scale 0.5` (default) | ~13 GB | ~0.65 s | GPU with 24 GB (recommended for most) |
+| `--upsampler anyup --upsample_scale 1.0` | ~42 GB | ~10–13 s | only a GPU with 48 GB (e.g. RTX A6000); one feature per original pixel |
+| `--upsampler bilinear` | lowest (SAM model only) | ~0.15 s | alternative: no upsampler, features read directly from the SAM map (fastest) |
+
+At scale 1.0 AnyUp runs without NATTEN, whose kernel crashes at that size, which is why it is much slower.
+Name the output folder after the setting you use; a folder built with one backbone/upsampler/scale cannot be extended
+with another.
+
+Expected for the full dataset (RTX A6000, default setting): **8,102 samples** (train 5,758 / val 283 / test 2,061),
+**~1.5 h** and **~195 GB per backbone** (`--fp16_features`: ~105 GB).
 About 23% of the clouds have no image within 50 ms and are skipped (WildScenes has fewer images than clouds).
 
 ### Main options
