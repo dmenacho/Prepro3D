@@ -55,8 +55,8 @@ Quick test first: add `--limit 50` (50 samples per split, spread over the whole 
 | Setting | GPU memory | Time per sample | Use when |
 |---|---|---|---|
 | `--upsampler anyup --upsample_scale 0.5` (default) | ~13 GB | ~0.65 s | GPU with 24 GB (recommended for most) |
-| `--upsampler anyup --upsample_scale 1.0` | ~42 GB | ~10–13 s | only a GPU with 48 GB (e.g. RTX A6000); one feature per original pixel |
-| `--upsampler bilinear` | lowest (SAM model only) | ~0.15 s | alternative: no upsampler, features read directly from the SAM map (fastest) |
+| `--upsampler anyup --upsample_scale 1.0` | ~42 GB | ~6.3 s (~14 h for the full dataset) | only a GPU with 48 GB (e.g. RTX A6000); one feature per original pixel |
+| `--upsampler bilinear` | lowest (SAM model only) | ~0.19 s | alternative: no upsampler, features read directly from the SAM map (fastest) |
 
 At scale 1.0 AnyUp runs without NATTEN, whose kernel crashes at that size, which is why it is much slower.
 Name the output folder after the setting you use; a folder built with one backbone/upsampler/scale cannot be extended
