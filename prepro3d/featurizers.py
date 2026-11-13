@@ -80,6 +80,12 @@ class Upsampler:
 
     def __init__(self, kind, device, scale=0.5, q_chunk_size=None, use_natten=True):
         self.kind, self.device, self.scale, self.q_chunk_size = kind, device, scale, q_chunk_size
+        if kind == "anyup" and use_natten and scale > 0.5:
+            # NATTEN's kernel crashes (illegal memory access) at ~3M query pixels (scale 1.0 on 2016x1512, tested);
+            # AnyUp's standard attention works there but needs ~42 GB GPU memory and ~13 s/image.
+            print(f"AnyUp: upsample_scale={scale} > 0.5 -> using standard attention instead of NATTEN")
+            use_natten = False
+            self.q_chunk_size = q_chunk_size or 65536
         if kind == "anyup":
             from anyup.model import AnyUp
             self.model = AnyUp().to(device)

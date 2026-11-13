@@ -46,6 +46,8 @@ python scripts/verify_dataset.py --output_dir /path/to/wildscenes_sam3_anyup_web
 ```
 Re-running the same command **resumes** (finished shards are skipped; shards are written atomically).
 Quick test first: add `--limit 50` (50 samples per split, spread over the whole split).
+`--upsample_scale 1.0` (one feature per original pixel) runs AnyUp without NATTEN, which crashes at that size:
+it needs ~42 GB GPU memory and ~13 s per image (vs ~0.5 s at the default 0.5).
 
 Expected for the full dataset (RTX A6000): **8,102 samples** (train 5,758 / val 283 / test 2,061),
 **~1.5 h** and **~175 GB per backbone** (`--fp16_features` halves the size), ~13 GB GPU memory.
@@ -85,16 +87,13 @@ Per sample (key `<seq>_<cloud timestamp>`):
 | `point_features.npy` | M×256 | their SAM2/SAM3 + AnyUp features |
 | `uv.npy`, `camera_T_cloud.npy`, `meta.json` | | pixel coords, extrinsics, image timestamp / backbone |
 
-## 6. Checks and tools
-* `scripts/verify_dataset.py` — index ↔ shards, keys, shapes, finite values. Run before sharing a dataset.
-* `scripts/eval_features.py` — linear probe from `point_features` to the 3D labels (train → val);
-  compare datasets built with different `--backbone` / `--upsampler`.
-* `scripts/check_projection.py <seq> <WildScenes folder>` — sanity check of the 2D↔3D geometry: 3D labels projected
-  into the images agree with the 2D labels (~70% vs ~46% for shuffled labels).
+## 6. Check the output
+`scripts/verify_dataset.py` checks index ↔ shards, required keys, shapes and finite values. Run it before sharing a
+dataset.
 
 ## Notes
-* Pose convention (verified with `check_projection.py`): `poses2d.csv` is the camera pose, `poses3d.csv` the
-  cloud pose. Both backbones stretch the image to a square (SAM2 1024², SAM3 1008²), as in their own preprocessing.
+* Pose convention (verified by projecting the 3D labels into the images): `poses2d.csv` is the camera pose,
+  `poses3d.csv` the cloud pose. Both backbones stretch the image to a square (SAM2 1024², SAM3 1008²), as in their own preprocessing.
 * SAM2's stride-4/8 levels are early-layer features without top-down fusion, so the semantic stride-16 map is used;
   SAM3's 288×288 neck level is a transposed-conv expansion of its 72×72 tokens, so the 72×72 map is used. AnyUp
   provides the fine detail from the image in both cases.
