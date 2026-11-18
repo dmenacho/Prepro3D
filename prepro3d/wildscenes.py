@@ -78,8 +78,14 @@ class Sample:
     def key(self) -> str:   # WebDataset keys must not contain '.'
         return f"{self.seq}_{self.cloud_ts.replace('.', '-')}"
 
+    @property
+    def order(self) -> float:
+        return float(self.cloud_ts)
+
 
 class WildScenes:
+    name, class_names, split_names = "wildscenes", CLASS_NAMES, ["train", "val", "test"]
+
     def __init__(self, root: str, splits_dir: str, max_dt: float = 0.05):
         self.root, self.splits_dir, self.max_dt = root, splits_dir, max_dt
         self.poses3d, self.poses2d, self.cameras, self._img_ts = {}, {}, {}, {}
@@ -117,3 +123,15 @@ class WildScenes:
 
     def camera_T_cloud(self, s: Sample) -> np.ndarray:
         return np.linalg.inv(self.poses2d[s.seq][s.image_ts]) @ self.poses3d[s.seq][s.cloud_ts]
+
+    def camera(self, s: Sample) -> Camera:
+        return self.cameras[s.seq]
+
+    def world_T_cloud(self, s: Sample) -> np.ndarray:
+        return self.poses3d[s.seq][s.cloud_ts]
+
+    def map_labels(self, raw: np.ndarray) -> np.ndarray:
+        return map_labels(raw)
+
+    def meta(self, s: Sample) -> dict:
+        return {"image_ts": s.image_ts, "dt": s.dt}

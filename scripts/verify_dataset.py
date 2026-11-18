@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Check a prepared dataset before sharing it: index <-> shards, required keys, shapes, dtypes, value ranges.
 
-Usage: python scripts/verify_dataset.py --output_dir /path/to/wildscenes_sam3_anyup_webdataset [--max_shards 0]
+Usage: python scripts/verify_dataset.py --output_dir /path/to/<dataset>_sam3_anyup_webdataset [--max_shards 0]
 """
 
 import argparse
@@ -25,7 +25,8 @@ def main():
     a = p.parse_args()
 
     info = json.load(open(os.path.join(a.output_dir, "dataset_info.json")))
-    idx = [l.strip() for l in open(os.path.join(a.output_dir, "wildscenes_processed_index.txt")) if l.strip()]
+    index_file = info.get("index_file", "wildscenes_processed_index.txt")   # older WildScenes outputs have no index_file
+    idx = [l.strip() for l in open(os.path.join(a.output_dir, index_file)) if l.strip()]
     by_shard = collections.defaultdict(set)
     for e in idx:
         split, shard, key = e.split("/")

@@ -78,27 +78,29 @@ def build_featurizer(backbone, device, checkpoint=None, random_weights=False):
 class Upsampler:
     """'anyup': image-guided AnyUp upsampling to `scale` x the original image size; 'bilinear': no upsampler."""
 
+    # NATTEN's kernel crashes (illegal memory access) at ~3M output pixels (2016x1512, tested) but works at 0.76M
+    # (1008x756). Above this limit AnyUp uses its standard attention (same weights; much slower and more memory).
+    NATTEN_MAX_PIXELS = 1_000_000
+
     def __init__(self, kind, device, scale=0.5, q_chunk_size=None, use_natten=True):
         self.kind, self.device, self.scale, self.q_chunk_size = kind, device, scale, q_chunk_size
-        if kind == "anyup" and use_natten and scale > 0.5:
-            # NATTEN's kernel crashes (illegal memory access) at ~3M query pixels (scale 1.0 on 2016x1512, tested);
-            # AnyUp's standard attention works there but needs ~42 GB GPU memory and ~13 s/image.
-            print(f"AnyUp: upsample_scale={scale} > 0.5 -> using standard attention instead of NATTEN")
-            use_natten = False
-            self.q_chunk_size = q_chunk_size or 65536
-        if kind == "anyup":
-            from anyup.model import AnyUp
-            self.model = AnyUp().to(device)
-            self.model.load_state_dict(torch.hub.load_state_dict_from_url(ANYUP_CKPT, progress=False, map_location=device))
-            if use_natten:   # same as the official hubconf `anyup_multi_backbone(use_natten=True)`
-                from anyup.layers import setup_cross_attention_block
-                cd = self.model.cross_decode
-                self.model.cross_decode = setup_cross_attention_block(
-                    use_natten=True, qk_dim=cd.cross_attn.attention.embed_dim, num_heads=4,
-                    window_ratio=cd.window_ratio, use_params_from=cd).to(device)
-            self.model.eval()
-        elif kind != "bilinear":
+        self.use_natten, self._models, self._warned = use_natten, {}, False
+        if kind not in ("anyup", "bilinear"):
             raise ValueError(kind)
+
+    def _anyup(self, natten):
+        if natten not in self._models:
+            from anyup.model import AnyUp
+            m = AnyUp().to(self.device)
+            m.load_state_dict(torch.hub.load_state_dict_from_url(ANYUP_CKPT, progress=False, map_location=self.device))
+            if natten:   # same as the official hubconf `anyup_multi_backbone(use_natten=True)`
+                from anyup.layers import setup_cross_attention_block
+                cd = m.cross_decode
+                m.cross_decode = setup_cross_attention_block(
+                    use_natten=True, qk_dim=cd.cross_attn.attention.embed_dim, num_heads=4,
+                    window_ratio=cd.window_ratio, use_params_from=cd).to(self.device)
+            self._models[natten] = m.eval()
+        return self._models[natten]
 
     @torch.no_grad()
     def __call__(self, image_uint8, lr_feats, uv, width, height):
@@ -107,7 +109,13 @@ class Upsampler:
             H, W = int(round(height * self.scale)), int(round(width * self.scale))
             img = F.interpolate(_to_tensor(image_uint8, self.device), size=(H, W), mode="bilinear", antialias=True, align_corners=False)
             img = (img - IMAGENET_MEAN.to(img)) / IMAGENET_STD.to(img)
-            fmap = self.model(img, lr_feats, output_size=(H, W), q_chunk_size=self.q_chunk_size)
+            natten = self.use_natten and H * W <= self.NATTEN_MAX_PIXELS
+            if self.use_natten and not natten and not self._warned:
+                print(f"AnyUp: {W}x{H} output > {self.NATTEN_MAX_PIXELS} pixels -> standard attention instead of NATTEN "
+                      "(slower, more GPU memory)", flush=True)
+                self._warned = True
+            q_chunk = self.q_chunk_size if natten else (self.q_chunk_size or 65536)
+            fmap = self._anyup(natten)(img, lr_feats, output_size=(H, W), q_chunk_size=q_chunk)
         else:
             fmap = lr_feats
         uv_t = torch.as_tensor(uv, dtype=torch.float32, device=self.device)
