@@ -34,7 +34,7 @@ conda activate prepro3d
 * The official **opt3d** split files (`train.csv`, `val.csv`, `test.csv`) from the WildScenes GitHub repository
   (`data/splits/opt3d/`). They are not part of the CSIRO download and not included here.
 
-## 4. Run (WildScenes)
+## 4a. Run (WildScenes)
 ```bash
 export CUDA_VISIBLE_DEVICES=0      # pick one GPU
 python scripts/prepare_wildscenes.py \
